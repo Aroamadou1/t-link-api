@@ -62,80 +62,73 @@ function calculerPrix(distance, poids, valeur, isFragile) {
     });
 }
 
-function callCoursier(res) {
-    firebase.update('livraisons', res.livraisonId, { status: 4, confirmedAt: new Date() }).then(
-        () => {
-            if (res.response) {
-                firebase.getOne('livraisons', res.livraisonId).then(
-                    (livraison) => {
-                        map.searchNearFrom(livraison.depart, livraison.destination, coursiers).then(
-                            (coursier) => {
-                                console.log('coursier: ', coursier);
-                                if (coursier) {
-                                    map.calculDistanceMatrix(coursier, livraison.depart).then(
-                                        (res2) => {
-                                            let matrix = res2.data.routes[0].legs[0];
-                                            console.log(matrix);
-                                            livraison.distanceCoursierClient = matrix.distance;
-                                            livraison.dureeCoursierClient = matrix.duration;
-                                            let message = "Distance de course: " + livraison.distance.text + "\nDepart: " + matrix.start_address + "\nArrivee: " + matrix.end_address + "\nDistance p/r au client: "
-                                                + matrix.distance.text;
-                                            let notification = {
-                                                title: "TOTO Express",
-                                                subtitle: "Livraison",
-                                                body: message,
-                                                sound: "call.mp3"
-                                            },
-                                                data = {
-                                                    event: "livraison:call",
-                                                    title: "TOTO Express",
-                                                    subtitle: "Livraison",
-                                                    id: res.livraisonId,
-                                                    distance: livraison.distance.text,
-                                                    distanceClient: matrix.distance.text,
-                                                    dureeClient: matrix.duration.text,
-                                                    depart: matrix.start_address,
-                                                    destination: matrix.end_address,
-                                                    duree: matrix.duration.text,
-                                                    chrono: matrix.duration.value.toString()
-                                                };
-                                            firebase.sendNotification(coursier.fcmKey, notification, data, 60);
-                                            firebase.update('livraisons', res.livraisonId, { distanceCoursierClient: matrix.distance, dureeCoursierClient: matrix.duration })
-                                            // io.to(coursier.socketId).emit('livraison:call', socket.livraison);
-                                        }
-                                    );
-                                } else {
-                                    // firebase.sendNotification()
-                                }
-
+function callCoursier(livraisonId) {
+    firebase.getOne('livraisons', livraisonId).then(
+        (livraison) => {
+            map.searchNearFrom(livraison.depart, livraison.destination, coursiers).then(
+                (coursier) => {
+                    console.log('coursier: ', coursier);
+                    if (coursier) {
+                        map.calculDistanceMatrix(coursier, livraison.depart).then(
+                            (res2) => {
+                                let matrix = res2.data.routes[0].legs[0];
+                                console.log(matrix);
+                                livraison.distanceCoursierClient = matrix.distance;
+                                livraison.dureeCoursierClient = matrix.duration;
+                                let message = "Distance de course: " + livraison.distance.text + "\nDepart: " + matrix.start_address + "\nArrivee: " + matrix.end_address + "\nDistance p/r au client: "
+                                    + matrix.distance.text;
+                                let notification = {
+                                    title: "TOTO Express",
+                                    subtitle: "Livraison",
+                                    body: message,
+                                    sound: "call.mp3"
+                                },
+                                    data = {
+                                        event: "livraison:call",
+                                        title: "TOTO Express",
+                                        subtitle: "Livraison",
+                                        id: livraisonId,
+                                        distance: livraison.distance.text,
+                                        distanceClient: matrix.distance.text,
+                                        dureeClient: matrix.duration.text,
+                                        depart: matrix.start_address,
+                                        destination: matrix.end_address,
+                                        duree: matrix.duration.text,
+                                        chrono: matrix.duration.value.toString()
+                                    };
+                                firebase.sendNotification(coursier.fcmKey, notification, data, 60);
+                                firebase.update('livraisons', livraisonId, { distanceCoursierClient: matrix.distance, dureeCoursierClient: matrix.duration })
+                                // io.to(coursier.socketId).emit('livraison:call', socket.livraison);
                             }
-                        ).catch(err => {
-                            let notification = {
-                                title: "TOTO Express",
-                                subtitle: "Livraison",
-                                body: 'L\'opération a échoué; veuillez reessayer!'
-                            },
-                                data = {
-                                    event: "livraison:call"
-                                };
-                            firebase.sendNotification(res.clientFcmKey, notification, data, 60 * 60);
-                            console.log(err);
-                        });
-                        let notification = {
-                            title: "TOTO Express",
-                            subtitle: "Livraison",
-                            body: 'Nous sommes a la recherche du coursier le plus proche de vous. Veuillez patientez!'
-                        },
-                            data = {
-                                event: "livraison:call",
-                            };
-                        firebase.sendNotification(livraison.clientFcmKey, notification, data, 60 * 60);
+                        );
+                    } else {
+                        // firebase.sendNotification()
                     }
-                ).catch(err => console.log(err))
-            }
-        }
-    );
 
+                }
+            ).catch(err => {
+                let notification = {
+                    title: "TOTO Express",
+                    subtitle: "Livraison",
+                    body: 'L\'opération a échoué; veuillez reessayer!'
+                },
+                    data = {
+                        event: "livraison:call"
+                    };
+                firebase.sendNotification(res.clientFcmKey, notification, data, 60 * 60);
+                console.log(err);
+            });
+            let notification = {
+                title: "TOTO Express",
+                subtitle: "Livraison",
+                body: 'Nous sommes a la recherche du coursier le plus proche de vous. Veuillez patientez!'
+            },
+                data = {
+                    event: "livraison:call",
+                };
+            firebase.sendNotification(livraison.clientFcmKey, notification, data, 60 * 60);
+        }
+    ).catch(err => console.log(err))
 }
 
 
@@ -148,26 +141,8 @@ app.use(express.json());
 app.route('/payement').post(function (req, res) {
     console.log(req.body);
     payload = req.body;
-    firebase.update('livraisons', payload.identifier, { status: 2, payement: payload.amount, payed_at: payload.datetime, payementMethod: payload.payment_method, payedContact: payload.phone_number });
-    let message = "Le paiement a été effectué avec success.";
-    let notification = {
-        title: "TOTO Express",
-        subtitle: "Confirmation",
-        body: message
-    },
-        data = {
-            event: "livraison:payement",
-            id: payload.identifier,
-            message: message
-        };
-        
-    firebase.getOne('livraisons', payload.identifier).then(
-        livraison => {
-        //     firebase.sendNotification(livraison.coursierFcmKey, notification, data, 60 * 60);
-        //     firebase.sendNotification(livraison.clientFcmKey, notification, data, 60 * 60 * 24);
-        callCoursier(livraison)
-        }
-    )
+    firebase.update('livraisons', payload.identifier, { status: 4, payement: payload.amount, payed_at: payload.datetime, payementMethod: payload.payment_method, payedContact: payload.phone_number });
+    callCoursier(payload.identifier);
 });
 const https = require('https');
 
