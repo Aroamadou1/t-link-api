@@ -1,10 +1,10 @@
 'use strict';
 
 module.exports = class map {
-    client;
-    key = "AIzaSyDlhMUVwp9azYQCiHxJirWeqMHE_dBYKOA";
     constructor(client) {
         this.client = client;
+        this.key = "AIzaSyDlhMUVwp9azYQCiHxJirWeqMHE_dBYKOA";
+
     }
 
     rad(x) { return x * Math.PI / 180; }

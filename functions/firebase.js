@@ -1,12 +1,12 @@
 'use strict';
 
 module.exports = class map {
-    firestore;
-    FCM;
-    FCMKey = "AAAAyF3geqA:APA91bEIWzKgNskuWmT2ImZ8TwojEnNRAHyU3eQrpMT3zOE7YJ3osfLLSO4Simb2H_9QrV6byX88TQk60ofAXjfwLDD3O60_TKaqOZyU1WWq2ugUWizzcJ-wFuOVDzk92Mt1rXQb_vkL";
+  
     constructor(firestore, FCM) {
         this.firestore = firestore;
         this.FCM = FCM;
+        this.FCMKey = "AAAAyF3geqA:APA91bEIWzKgNskuWmT2ImZ8TwojEnNRAHyU3eQrpMT3zOE7YJ3osfLLSO4Simb2H_9QrV6byX88TQk60ofAXjfwLDD3O60_TKaqOZyU1WWq2ugUWizzcJ-wFuOVDzk92Mt1rXQb_vkL";
+
     }
     //firebase functions
 

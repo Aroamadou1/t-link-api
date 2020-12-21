@@ -1,21 +1,27 @@
+
+'use strict';
+
 const http = require('http');
 const express = require("express");
 const cors = require('cors');
 const bodyParser = require("body-parser");
 const app = express();
-app.use(cors({ origin: '*:*' }));
+app.set('view engine', 'pug');
+// app.use(cors({ origin: '*:*' }));
+var corsOptions = {
+    origin: 'http://example.com',
+    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+  }
+  
+// https://poised-elf-271018.appspot.com/payement
 
-
-
-const server = http.createServer(app);
-const io = require('socket.io').listen(server);
-io.origins('*:*');
+const server = http.Server(app);
+const io = require('socket.io')(server);
 const admin = require("firebase-admin");
 const { Client, Status } = require("@googlemaps/google-maps-services-js");
 const client = new Client({});
-coursiers = [];
-clients = [];
-courses = [];
+var coursiers = [];
+var clients = [];
 
 var serviceAccount = require("./serviceAccountKey.json");
 
@@ -38,23 +44,28 @@ var firebase = new firebaseInstance(defaultFirestore, defaulFCM);
 var map = new mapInstance(client);
 
 
-function calculerPrix(distance, poids, valeur, isFragile) {
+function calculerPrix(poids, distance, categorie, valeur, fragilite) {
     return new Promise((resolve, reject) => {
-        firebase.getOne('tarifPoids', poids).then(
+        firebase.getOne('poids', poids).then(
             res => {
-                console.log
-                firebase.getAll('tarifs').then(
+                console.log(res);
+                firebase.getAll('distances').then(
                     res2 => {
-                        tarifPoids = res.valeur;
-                        tarifAssurance = res2[0].data.valeur;
-                        tarifDistance = res2[1].data.valeur / 1000;
-                        tarifFragilete = res2[2].data.valeur;
-                        let prix = 0;
-                        console.log(distance);
-                        console.log(tarifDistance);
-                        console.log(tarifPoids);
-                        prix = distance * tarifDistance + tarifPoids;
-                        resolve(Math.round(prix));
+                        firebase.getOne('categories', categorie).then(
+                            res3 => {
+                                console.log(res2);
+                                let tarifPoids = res.montant;
+                                let tarifDistance = res2[0].data.montant;
+                                // let tarifCategorie = res3.montant;
+                                let prix = 0;
+                                console.log(distance);
+                                console.log(tarifDistance);
+                                console.log(tarifPoids);
+                                prix = ((distance/1000) - 1) * tarifDistance + tarifPoids + res2[0].data.premierKilometre;
+                                resolve(Math.round(prix));
+                            }
+                        )
+
                     }
                 ).catch(err => reject(err));
             }
@@ -131,20 +142,70 @@ function callCoursier(livraisonId) {
     ).catch(err => console.log(err))
 }
 
-
 // firebase.getAll('positions');
 // firebase.save('test', {id: 1});
 
 // 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
+app.use(cors());
+app.route('/').get(function (req, res) {
+    res.send('hello world Aro!');
+});
+
+//payement paygate
 app.route('/payement').post(function (req, res) {
     console.log(req.body);
     payload = req.body;
     firebase.update('livraisons', payload.identifier, { status: 4, payement: payload.amount, payed_at: payload.datetime, payementMethod: payload.payment_method, payedContact: payload.phone_number });
     callCoursier(payload.identifier);
 });
+
+//livraisons
 const https = require('https');
+app.route('/livraison/calculate').post(function (req, ans) {
+    console.log(req.body);
+    var res = req.body;
+    map.calculDistanceMatrix(res.depart, res.destination).then(
+        (res2) => {
+            let matrix = res2.data.routes[0].legs[0];
+            res.distance = matrix.distance;
+            res.duree = matrix.duration;
+            calculerPrix(res.colis.poidsId, res.distance.value, res.colis.categorieId, res.colis.valeur, res.colis.fragilite).then(
+                prix => {
+                    console.log('calcul prix :', prix);
+                    res.prix = prix;
+                    res.createdAt = new Date();
+                    res.status = 0;
+                    firebase.save('livraisons', res).then(
+                        id => {
+                            let message = "La distance à parcourir a été évaluée à " + res.distance.text + ". Le prix provisoire est estimé à " + res.prix + ' f cfa. Nous vous rappelons \
+                            que ce prix peut changer toute fois si les informations que vous avez fournies ne sont pas correctes. Veuillez effectuer le payement pour continuer l\'opération';
+                            let notification = {
+                                title: "TOTO Express",
+                                subtitle: "Livraison",
+                                body: message
+                            };
+                            let data = {
+                                event: "livraison:start",
+                                id: id,
+                                nom: " livraison",
+                                prix: prix.toString(),
+                                distance: matrix.distance.text,
+                                duree: matrix.duration.text
+                            };
+                            firebase.sendNotification(res.client.fcmKey, notification, data, 60 * 60);
+                        }
+                    ).catch(err => console.log(err));
+                }
+            ).catch(err => console.log(err));
+        }
+    ).catch(err => {
+        console.log(err)
+        // socket.emit('livraison:start', { infos: { type: 'danger', message: 'Lopération a échoué; veuillez reessayer !' } })
+    });
+    ans.send('ok');
+});
 
 function smsTo(phoneNumber, message) {
     https.get('https://api.paasoo.com/json?key=mm1evcai&secret=Q85Ztp4m&from=TT+Express&to=00228' + phoneNumber + '&text=' + message, (resp) => {
@@ -215,15 +276,17 @@ io.on('connection', socket => {
                 let matrix = res2.data.routes[0].legs[0];
                 res.distance = matrix.distance;
                 res.duree = matrix.duration;
-                calculerPrix(res.distance.value, res.poidsId, res.valeur, res.isFragile).then(
+                calculerPrix(res.colis.poids, res.distance.value, res.colis.categorie, res.colis.valeur, res.colis.fragilite).then(
                     prix => {
+                        console.log('calcul prix :', prix);
                         res.prix = prix;
                         res.createdAt = new Date();
                         res.status = 5;
+                        res.colis.imageClient=null;
                         firebase.save('livraisons', res).then(
                             id => {
                                 let message = "La distance à parcourir a été évaluée à " + res.distance.text + ". Le prix provisoire est estimé à " + res.prix + ' f cfa. Nous vous rappelons \
-                                que ce prix peut changer toute fois si les informations que vous avez fournies ne sont pas correctes. Veuillez confirmer pour continuer l\'operation';
+                                que ce prix peut changer toute fois si les informations que vous avez fournies ne sont pas correctes. Veuillez effectuer le payement pour continuer l\'opération';
                                 let notification = {
                                     title: "TOTO Express",
                                     subtitle: "Livraison",
@@ -237,7 +300,7 @@ io.on('connection', socket => {
                                     distance: matrix.distance.text,
                                     duree: matrix.duration.text
                                 };
-                                firebase.sendNotification(res.clientFcmKey, notification, data, 60 * 60);
+                                firebase.sendNotification(res.client.fcmKey, notification, data, 60 * 60);
                             }
                         ).catch(err => console.log(err));
                     }
@@ -480,4 +543,10 @@ io.on('connection', socket => {
 
 });
 
-server.listen(3000);
+if (module === require.main) {
+    const PORT = process.env.PORT || 8080;
+    server.listen(PORT, () => {
+        console.log(`App listening on port ${PORT}`);
+        console.log('Press Ctrl+C to quit.');
+    });
+}
