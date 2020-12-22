@@ -10,8 +10,32 @@ module.exports = class map {
     }
     //firebase functions
 
-    getAll(path) {
-        return this.firestore.collection(path).get().then(
+    getAll(path, ref) {
+        return this.firestore.collection(path).ref.get().then(
+            (res) => {
+                let array = [];
+                res.forEach(item => {
+                    const id = item.id;
+                    const data = item.data();
+                    array.push({ id: id, data: data });
+                    // findNearDriver(data.depart.latitude, data.depart.longitude, res.data());
+                });
+                console.log(array.length);
+                return array;
+            }
+        ).catch(err => console.log('error: ', err));
+    }
+
+    getOne(path, id) {
+        return this.firestore.collection(path).doc(id).get().then(
+            res => {
+                let data = res.data();
+                return {id, data};
+            }
+        );
+    }
+    getInCollection(collection, id, path) {
+        return this.firestore.collection(collection).doc(id).collection(path).get().then(
             (res) => {
                 let array = [];
                 res.forEach(item => {
@@ -23,20 +47,12 @@ module.exports = class map {
                 console.log(array);
                 return array;
             }
-        ).catch(err => console.log('error: ', err));
-    }
-
-    getOne(path, id) {
-        return this.firestore.collection(path).doc(id).get().then(
-            res => {
-                console.log(res.data());
-                return res.data();
-            }
         );
     }
 
     save(path, data) {
         console.log('executed!!');
+        data.createdAt = new Date();
       return  this.firestore.collection(path).add(data).then(
             res => {
                 console.log('response: ', res.id);
@@ -47,6 +63,7 @@ module.exports = class map {
 
     update(path, id, data) {
         console.log('executed!!');
+        data.updatedAt = new Date();
         return  this.firestore.collection(path).doc(id).update(data).then(
             res => {
                 console.log('response: ', res);

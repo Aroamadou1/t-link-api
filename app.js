@@ -11,8 +11,8 @@ app.set('view engine', 'pug');
 var corsOptions = {
     origin: 'http://example.com',
     optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
-  }
-  
+}
+
 // https://poised-elf-271018.appspot.com/payement
 
 const server = http.Server(app);
@@ -45,48 +45,33 @@ var map = new mapInstance(client);
 
 
 function calculerPrix(poids, distance, categorie, valeur, fragilite) {
-    return new Promise((resolve, reject) => {
-        firebase.getOne('poids', poids).then(
-            res => {
-                console.log(res);
-                firebase.getAll('distances').then(
-                    res2 => {
-                        firebase.getOne('categories', categorie).then(
-                            res3 => {
-                                console.log(res2);
-                                let tarifPoids = res.montant;
-                                let tarifDistance = res2[0].data.montant;
-                                // let tarifCategorie = res3.montant;
-                                let prix = 0;
-                                console.log(distance);
-                                console.log(tarifDistance);
-                                console.log(tarifPoids);
-                                prix = ((distance/1000) - 1) * tarifDistance + tarifPoids + res2[0].data.premierKilometre;
-                                resolve(Math.round(prix));
-                            }
-                        )
-
-                    }
-                ).catch(err => reject(err));
-            }
-        )
-    });
+    distance /= 1000;
+    // let callback = function(ref) {
+    //     ref.where('borneInf', '>=', distance).where('borneSup', '<', distance)
+    // }
+    return firebase.getInCollection('poids', poids, 'tarifs').then(
+        res => {
+            let tarif = res.find(item => item.data.borneInf <= distance && item.data.borneSup > distance)
+            console.log(tarif);
+            return Math.round(tarif.data.montant * distance);
+        }
+    )
 }
 
 function callCoursier(livraisonId) {
     firebase.getOne('livraisons', livraisonId).then(
         (livraison) => {
-            map.searchNearFrom(livraison.depart, livraison.destination, coursiers).then(
+            map.searchNearFrom(livraison.data.depart, livraison.data.destination, coursiers).then(
                 (coursier) => {
                     console.log('coursier: ', coursier);
                     if (coursier) {
-                        map.calculDistanceMatrix(coursier, livraison.depart).then(
+                        map.calculDistanceMatrix(coursier, livraison.data.depart).then(
                             (res2) => {
                                 let matrix = res2.data.routes[0].legs[0];
                                 console.log(matrix);
-                                livraison.distanceCoursierClient = matrix.distance;
-                                livraison.dureeCoursierClient = matrix.duration;
-                                let message = "Distance de course: " + livraison.distance.text + "\nDepart: " + matrix.start_address + "\nArrivee: " + matrix.end_address + "\nDistance p/r au client: "
+                                livraison.data.distanceCoursierClient = matrix.distance;
+                                livraison.data.dureeCoursierClient = matrix.duration;
+                                let message = "Distance de course: " + livraison.data.distance.text + "\nDepart: " + matrix.start_address + "\nArrivee: " + matrix.end_address + "\nDistance p/r au client: "
                                     + matrix.distance.text;
                                 let notification = {
                                     title: "TOTO Express",
@@ -99,7 +84,7 @@ function callCoursier(livraisonId) {
                                         title: "TOTO Express",
                                         subtitle: "Livraison",
                                         id: livraisonId,
-                                        distance: livraison.distance.text,
+                                        distance: livraison.data.distance.text,
                                         distanceClient: matrix.distance.text,
                                         dureeClient: matrix.duration.text,
                                         depart: matrix.start_address,
@@ -114,30 +99,22 @@ function callCoursier(livraisonId) {
                         );
                     } else {
                         // firebase.sendNotification()
+                        console.log('pas de coursier');
                     }
 
                 }
             ).catch(err => {
-                let notification = {
-                    title: "TOTO Express",
-                    subtitle: "Livraison",
-                    body: 'L\'opération a échoué; veuillez reessayer!'
-                },
-                    data = {
-                        event: "livraison:call"
-                    };
-                firebase.sendNotification(res.clientFcmKey, notification, data, 60 * 60);
+                // let notification = {
+                //     title: "TOTO Express",
+                //     subtitle: "Livraison",
+                //     body: 'L\'opération a échoué; veuillez reessayer!'
+                // },
+                //     data = {
+                //         event: "livraison:call"
+                //     };
+                // firebase.sendNotification(res.data.clientFcmKey, notification, data, 60 * 60);
                 console.log(err);
             });
-            let notification = {
-                title: "TOTO Express",
-                subtitle: "Livraison",
-                body: 'Nous sommes a la recherche du coursier le plus proche de vous. Veuillez patientez!'
-            },
-                data = {
-                    event: "livraison:call",
-                };
-            firebase.sendNotification(livraison.clientFcmKey, notification, data, 60 * 60);
         }
     ).catch(err => console.log(err))
 }
@@ -155,15 +132,133 @@ app.route('/').get(function (req, res) {
 
 //payement paygate
 app.route('/payement').post(function (req, res) {
-    console.log(req.body);
-    payload = req.body;
-    firebase.update('livraisons', payload.identifier, { status: 4, payement: payload.amount, payed_at: payload.datetime, payementMethod: payload.payment_method, payedContact: payload.phone_number });
-    callCoursier(payload.identifier);
+    res.send({ response: 'ok' });
+    var payload = req.body;
+    console.log(payload);
+    firebase.getOne('transactions', payload.identifier).then(
+        transaction => {
+            // firebase.update('livraisons', payload.identifier, { status: 4, payement: payload.amount, payed_at: payload.datetime, payementMethod: payload.payment_method, payedContact: payload.phone_number });
+            if (transaction.data.type === 'payement') {
+                defaultFirestore.collection('livraisons')
+                    .where('client.id', '==', transaction.data.userId)
+                    .where('payement.transactionId', '==', transaction.id)
+                    .get().then(
+                        (res) => {
+                            let array = [];
+                            res.forEach(item => {
+                                const id = item.id;
+                                const data = item.data();
+                                array.push({ id: id, data: data });
+                            });
+                            console.log(array);
+                            if (array.length > 0) {
+                                let livraison = array[0];
+                                if (livraison.data.payement.prix === payload.amount) {
+                                    if (payload.payment_method ==='PORTEFEUILLE'){
+                                        firebase.getOne('clients', livraison.data.client.id).then(
+                                            client => {
+                                                if (client.data.solde >= livraison.data.payement.prix) {
+                                                    firebase.update('clients', client.id, {solde: client.data.solde - livraison.data.payement.prix}).then(
+                                                        () => {
+                                                            firebase.update('livraisons', livraison.id, { status: 2 }).then(
+                                                                () => {
+                                                                    firebase.update('transactions', transaction.id, { status: 2, payedAt: payload.datetime, methode: payload.payment_method, reference: payload.payment_reference });
+                                                                    let message = "Votre payement a été accepté. Nous sommes entrain de contacter le coursier le plus proche de vous. Vous aurez un retour dans les secondes suivantes.";
+                                                                    let notification = {
+                                                                        title: "T-Link",
+                                                                        subtitle: "Notification",
+                                                                        body: message
+                                                                    };
+                                                                    let data = {
+                                                                        id: livraison.id,
+                                                                        type: "payement",
+                                                                        action: "information",
+                                                                        message: message
+                                                                    };
+                                                                    firebase.sendNotification(livraison.data.client.fcmKey, notification, data, 60 * 60);
+                                                                    callCoursier(livraison.id);
+                                                                }
+                                                            );
+                                                        }
+                                                    );                                                   
+                                                } else {
+                                                    console.log('solde insuffisant!');
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        firebase.update('livraisons', livraison.id, { status: 2 }).then(
+                                            () => {
+                                                firebase.update('transactions', transaction.id, { status: 2, payedAt: payload.datetime, methode: payload.payment_method, reference: payload.payment_reference });
+                                                let message = "Votre payement a été accepté. Nous sommes entrain de contacter le coursier le plus proche de vous. Vous aurez un retour dans les secondes suivantes.";
+                                                let notification = {
+                                                    title: "T-Link",
+                                                    subtitle: "Notification",
+                                                    body: message
+                                                };
+                                                let data = {
+                                                    id: livraison.id,
+                                                    type: "payement",
+                                                    action: "information",
+                                                    message: message
+                                                };
+                                                firebase.sendNotification(livraison.data.client.fcmKey, notification, data, 60 * 60);
+                                                callCoursier(livraison.id);
+                                            }
+                                        );
+                                    }
+                                    
+                                } else {
+                                    // add to portefeuille
+                                    console.log('Bad transaction solde');
+                                    // send to message
+                                }
+                            } else {
+                                console.log('transaction non trouvée!');
+                            }
+                        }
+                    ).catch(err => console.log('error: ', err));
+            } else if (transaction.data.type === 'depot') {
+                if (transaction.data.montant === payload.amount) {
+                    firebase.getOne('clients', transaction.data.userId).then(
+                        client => {
+                            firebase.update('clients', transaction.data.userId, { solde: client.data.solde + payload.amount }).then(
+                                () => {
+                                    firebase.update('transactions', transaction.id, { status: 2, payedAt: payload.datetime, methode: payload.payment_method, reference: payload.payment_reference}).then(
+                                        () => {
+                                            let message = "Votre payement a été accepté. Votre compte est rechargé.";
+                                            let notification = {
+                                                title: "T-Link",
+                                                subtitle: "Notification",
+                                                body: message
+                                            };
+                                            let data = {
+                                                id: transaction.id,
+                                                type: "payement",
+                                                action: "information",
+                                                message: message
+                                            };
+                                            firebase.sendNotification(client.data.fcmKey, notification, data, 60 * 60);
+                                        }
+                                    );
+                                }
+                            );
+                        }
+                    );
+
+                } else {
+                    console.log('Bad transaction solde');
+                }
+
+            }
+        }
+    );
 });
 
 //livraisons
 const https = require('https');
 app.route('/livraison/calculate').post(function (req, ans) {
+    ans.send({ response: 'ok' });
     console.log(req.body);
     var res = req.body;
     map.calculDistanceMatrix(res.depart, res.destination).then(
@@ -174,37 +269,40 @@ app.route('/livraison/calculate').post(function (req, ans) {
             calculerPrix(res.colis.poidsId, res.distance.value, res.colis.categorieId, res.colis.valeur, res.colis.fragilite).then(
                 prix => {
                     console.log('calcul prix :', prix);
-                    res.prix = prix;
-                    res.createdAt = new Date();
-                    res.status = 0;
-                    firebase.save('livraisons', res).then(
-                        id => {
-                            let message = "La distance à parcourir a été évaluée à " + res.distance.text + ". Le prix provisoire est estimé à " + res.prix + ' f cfa. Nous vous rappelons \
-                            que ce prix peut changer toute fois si les informations que vous avez fournies ne sont pas correctes. Veuillez effectuer le payement pour continuer l\'opération';
-                            let notification = {
-                                title: "TOTO Express",
-                                subtitle: "Livraison",
-                                body: message
-                            };
-                            let data = {
-                                event: "livraison:start",
-                                id: id,
-                                nom: " livraison",
-                                prix: prix.toString(),
-                                distance: matrix.distance.text,
-                                duree: matrix.duration.text
-                            };
-                            firebase.sendNotification(res.client.fcmKey, notification, data, 60 * 60);
+                    let message = "La distance à parcourir a été évaluée à " + res.distance.text + ". Le prix provisoire est estimé à " + res.payement.prix + ' f cfa. Nous vous rappelons \
+                    que ce prix peut changer toute fois si les informations que vous avez fournies ne sont pas correctes. Veuillez effectuer le payement pour continuer l\'opération';
+                    firebase.save('transactions', { methode: null, montant: prix, beneficiaire: 'TOTO Africa', type: 'payement', userId: res.client.id, phoneNumber: null, status: 1, description: message }).then(
+                        transactionId => {
+                            res.payement = { prix, transactionId };
+                            res.status = 1;
+                            firebase.save('livraisons', res).then(
+                                id => {
+                                  
+                                    let notification = {
+                                        title: "TOTO Express",
+                                        subtitle: "Livraison",
+                                        body: message
+                                    };
+                                    let data = {
+                                        type: "livraison",
+                                        action: "payement",
+                                        message,
+                                        transactionId,
+                                        id
+                                    };
+                                    firebase.sendNotification(res.client.fcmKey, notification, data, 60 * 60);
+                                }
+                            ).catch(err => console.log(err));
+
                         }
-                    ).catch(err => console.log(err));
+                    );
+
                 }
             ).catch(err => console.log(err));
         }
     ).catch(err => {
         console.log(err)
-        // socket.emit('livraison:start', { infos: { type: 'danger', message: 'Lopération a échoué; veuillez reessayer !' } })
     });
-    ans.send('ok');
 });
 
 function smsTo(phoneNumber, message) {
@@ -282,7 +380,7 @@ io.on('connection', socket => {
                         res.prix = prix;
                         res.createdAt = new Date();
                         res.status = 5;
-                        res.colis.imageClient=null;
+                        res.colis.imageClient = null;
                         firebase.save('livraisons', res).then(
                             id => {
                                 let message = "La distance à parcourir a été évaluée à " + res.distance.text + ". Le prix provisoire est estimé à " + res.prix + ' f cfa. Nous vous rappelons \
