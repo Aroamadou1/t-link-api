@@ -30,7 +30,7 @@ module.exports = class map {
                 var distances = [];
                 var closest = -1;
                 for (let i = 0; i < positions.length; i++) {
-                    if (positions[i].workState === 5) {
+                    if (positions[i].workState === 1) {
                         var mlat = positions[i].latitude;
                         var mlng = positions[i].longitude;
                         var dLat = this.rad(mlat - lat);
