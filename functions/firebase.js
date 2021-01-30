@@ -1,14 +1,14 @@
 'use strict';
 
 module.exports = class map {
-  
-    constructor(firestore, FCM) {
-        this.firestore = firestore;
-        this.FCM = FCM;
-        this.FCMKey = "AAAAyF3geqA:APA91bEIWzKgNskuWmT2ImZ8TwojEnNRAHyU3eQrpMT3zOE7YJ3osfLLSO4Simb2H_9QrV6byX88TQk60ofAXjfwLDD3O60_TKaqOZyU1WWq2ugUWizzcJ-wFuOVDzk92Mt1rXQb_vkL";
 
-    }
-    //firebase functions
+    constructor(firestore, FCM) {
+            this.firestore = firestore;
+            this.FCM = FCM;
+            this.FCMKey = "AAAAyF3geqA:APA91bEIWzKgNskuWmT2ImZ8TwojEnNRAHyU3eQrpMT3zOE7YJ3osfLLSO4Simb2H_9QrV6byX88TQk60ofAXjfwLDD3O60_TKaqOZyU1WWq2ugUWizzcJ-wFuOVDzk92Mt1rXQb_vkL";
+
+        }
+        //firebase functions
 
     getAll(path, ref) {
         return this.firestore.collection(path).ref.get().then(
@@ -30,7 +30,7 @@ module.exports = class map {
         return this.firestore.collection(path).doc(id).get().then(
             res => {
                 let data = res.data();
-                return {id, data};
+                return { id, data };
             }
         );
     }
@@ -50,10 +50,10 @@ module.exports = class map {
         );
     }
 
-    save(path, data) {
+    set(path, id, data) {
         console.log('executed!!');
         data.createdAt = new Date();
-      return  this.firestore.collection(path).add(data).then(
+        return this.firestore.collection(path).doc(id).set(data).then(
             res => {
                 console.log('response: ', res.id);
                 return res.id;
@@ -61,10 +61,33 @@ module.exports = class map {
         ).catch(err => console.log(err));
     }
 
+    save(path, data) {
+        console.log('executed!!');
+        data.createdAt = new Date();
+        return this.firestore.collection(path).add(data).then(
+            res => {
+                console.log('response: ', res.id);
+                return res.id;
+            }
+        ).catch(err => console.log(err));
+    }
+
+    saveInCollection(collection, id, path, data) {
+        console.log('executed!!');
+        data.createdAt = new Date();
+        return this.firestore.collection(collection).doc(id).collection(path).add(data).then(
+            res => {
+                console.log('response: ', res.id);
+                return res.id;
+            }
+        ).catch(err => console.log(err));
+    }
+
+
     update(path, id, data) {
         console.log('executed!!');
         data.updatedAt = new Date();
-        return  this.firestore.collection(path).doc(id).update(data).then(
+        return this.firestore.collection(path).doc(id).update(data).then(
             res => {
                 console.log('response: ', res);
                 return true;
@@ -76,7 +99,7 @@ module.exports = class map {
 
     //FCM
     sendNotification(uid, notification, data, period) {
-        notification.sound=notification.sound?notification.sound:notification.sound = "default";
+        notification.sound = notification.sound ? notification.sound : notification.sound = "default";
         const payload = {
             notification,
             data
@@ -84,8 +107,8 @@ module.exports = class map {
         const options = {
             priority: "high",
             timeToLive: period
-            //  60 * 60 *24
-          };
+                //  60 * 60 *24
+        };
         this.FCM.sendToDevice(uid, payload, options).then(
             res => console.log(JSON.stringify(res))
         ).catch(err => console.log(JSON.stringify(err)));

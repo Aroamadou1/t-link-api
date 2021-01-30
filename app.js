@@ -218,6 +218,7 @@ app.route('/payement').post(function(req, res) {
                                                                         action: "information",
                                                                         message: message
                                                                     };
+                                                                    firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: "1", message: { texte: message }, createdAt: new Date() });
                                                                     firebase.sendNotification(livraison.data.client.fcmKey, notification, data, 60 * 60);
                                                                     callCoursier(livraison.id);
                                                                 }
@@ -245,6 +246,7 @@ app.route('/payement').post(function(req, res) {
                                                     action: "information",
                                                     message: message
                                                 };
+                                                firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: "1", message: { texte: message }, createdAt: new Date() });
                                                 firebase.sendNotification(livraison.data.client.fcmKey, notification, data, 60 * 60);
                                                 callCoursier(livraison.id);
                                             }
@@ -380,6 +382,7 @@ app.route('/livraison/accept').post(function(req, ans) {
                                     message
                                 };
                             firebase.sendNotification(livraison.data.client.fcmKey, notification, data, 60);
+                            firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: "1", message: { texte: message }, createdAt: new Date() });
                             firebase.getOne('coursiers', res.coursierId).then(
                                 coursier2 => {
                                     firebase.update('livraisons', res.livraisonId, {
@@ -387,6 +390,8 @@ app.route('/livraison/accept').post(function(req, ans) {
                                         deplacement: { createdAt: new Date(), adresse: matrix.start_address, longitude: coursier.longitude, latitude: coursier.latitude, distance: matrix.distance, duree: matrix.duration }
                                     }).then(
                                         res => {
+                                            let msg = "Salut, je suis Mr " + coursier2.data.nom + " et je serais votre coursier pour cette livraison. Veuillez garder votre téléphone  près de vous et allumé. Je suis en route."
+                                            firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: coursier2.id, type: 'coursiers', message: { texte: msg }, createdAt: new Date() });
                                             ans.send({ response: 'ok' });
                                         });
                                 });
@@ -425,6 +430,8 @@ app.route('/livraison/arriveeClient').post(function(req, ans) {
             livraisonId: res.livraisonId,
             message
         };
+    let msg = "Je suis arrivé à la localisation indiquée comme votre adresse de départ.";
+    firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: coursier2.id, type: 'coursiers', message: { texte: msg }, createdAt: new Date() });
     firebase.sendNotification(res.clientFcmKey, notification, data, 60);
 });
 
@@ -446,6 +453,7 @@ app.route('/livraison/confirmationColi').post(function(req, ans) {
                 livraisonId: res.livraisonId,
                 message
             };
+        firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: "1", message: { texte: message }, createdAt: new Date() });
         firebase.sendNotification(res.clientFcmKey, notification, data, 60);
     } else {
         //oncaluclate prix;
@@ -471,31 +479,10 @@ app.route('/livraison/arriveeDestinataire').post(function(req, ans) {
             livraisonId: res.livraisonId,
             message
         };
+    let msg = "Je suis arrivé à la localisation indiquée comme adresse du destinataire. Je suis entrain de procéder à la décharge.";
+    firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: coursier2.id, type: 'coursiers', message: { texte: msg }, createdAt: new Date() });
     firebase.sendNotification(res.clientFcmKey, notification, data, 60);
 });
-
-// app.route('/livraison/confirmationDestinataire').post(function(req, ans) {
-//     let res = req.body;
-//     console.log(res);
-//     if (res.accept) {
-//         firebase.update('livraisons', res.livraisonId, { status: 3 });
-//         let message = "Votre livraison a été effectuée avec succcess!";
-//         let notification = {
-//                 title: "T-Link",
-//                 subtitle: "Livraison effectué",
-//                 body: message
-//             },
-//             data = {
-//                 type: "livraison",
-//                 action: "information",
-//                 livraisonId: res.livraisonId,
-//                 message
-//             };
-//         firebase.sendNotification(res.clientFcmKey, notification, data, 60);
-//     } else {
-//         //signaler un incident;
-//     }
-// });
 
 app.route('/livraison/finish').post(function(req, ans) {
     let res = req.body;
@@ -516,6 +503,7 @@ app.route('/livraison/finish').post(function(req, ans) {
                         livraisonId: livraison.id,
                         message
                     };
+                firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: "1", message: { texte: message }, createdAt: new Date() });
                 firebase.sendNotification(livraison.data.client.fcmKey, notification, data, 60);
             }
         );
@@ -525,9 +513,30 @@ app.route('/livraison/finish').post(function(req, ans) {
     }
 });
 
+app.route('/livraison/message').post(function(req, ans) {
+    let res = req.body;
+    console.log(res);
 
+    let notification = {
+            title: "T-Link",
+            subtitle: "Nouveau message",
+            body: res.discussion.message.texte
+        },
+        data = {
+            type: "livraison",
+            action: "message",
+            livraisonId: res.livraisonId,
+            message: res.discussion.message.texte
+        };
+    res.discussion.sendedAt = new Date();
+    firebase.saveInCollection('livraisons', res.livraisonId, 'discussions', res.discussion);
+    firebase.getOne(res.receiverType, res.receiverId).then(
+        receiver => {
+            firebase.sendNotification(receiver.data.fcmKey, notification, data, 60);
+        }
+    );
+});
 
-// smsTo(92942601, "Hello world!");
 
 io.on('connection', socket => {
     console.log(socket.id);
