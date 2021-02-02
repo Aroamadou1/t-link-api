@@ -173,6 +173,22 @@ app.route('/').get(function(req, res) {
     res.send('hello world Aro!');
 });
 
+app.route('/coursier/add').post(function(req, ans) {
+    var res = req.body;
+    console.log(res);
+    let randPass = '';
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (var i = 0; i < 6; i++) randPass += possible.charAt(Math.floor(Math.random() * possible.length));
+    console.log(randPass);
+    admin.auth().createUser({email: res.email, password: randPass, phoneNumber: res.phoneNumber, photoURL: res.photoURL, displayName: res.nom + ' ' + res.prenom}).then(
+        (data) => {
+            firebase.set('coursiers', data.uid, res).then(
+                () =>     ans.send({ response: 'ok', password: randPass })
+            );
+        }
+    )
+});
+
 //payement paygate
 app.route('/payement').post(function(req, res) {
     res.send({ response: 'ok' });
@@ -386,14 +402,14 @@ app.route('/livraison/accept').post(function(req, ans) {
                             firebase.getOne('coursiers', res.coursierId).then(
                                 coursier2 => {
                                     firebase.update('livraisons', res.livraisonId, {
-                                        coursier: { id: coursier.id, fcmKey: coursier2.data.fcmKey, nom: coursier2.data.nom, phoneNumber: coursier2.data.phoneNumber, immatriculation: coursier2.data.immatriculation },
+                                        coursier: { id: coursier.id, fcmKey: coursier2.data.fcmKey, nom: coursier2.data.nom, phoneNumber: coursier2.data.phoneNumber },
                                         deplacement: { createdAt: new Date(), adresse: matrix.start_address, longitude: coursier.longitude, latitude: coursier.latitude, distance: matrix.distance, duree: matrix.duration }
                                     }).then(
                                         res => {
                                             let msg = "Salut, je suis Mr " + coursier2.data.nom + " et je serais votre coursier pour cette livraison. Veuillez garder votre téléphone  près de vous et allumé. Je suis en route."
                                             firebase.saveInCollection('livraisons', livraison.id, 'discussions', { senderId: coursier2.id, type: 'coursiers', message: { texte: msg }, createdAt: new Date() });
                                             ans.send({ response: 'ok' });
-                                        });
+                                        }).catch(err => console.log(err));
                                 });
                         }
                     );
