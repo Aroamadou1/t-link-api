@@ -170,7 +170,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cors());
 app.route('/').get(function(req, res) {
-    res.send('hello world Aro!');
+    res.send('hello world Aromestr!');
 });
 
 app.route('/coursier/add').post(function(req, ans) {
@@ -180,10 +180,10 @@ app.route('/coursier/add').post(function(req, ans) {
     var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     for (var i = 0; i < 6; i++) randPass += possible.charAt(Math.floor(Math.random() * possible.length));
     console.log(randPass);
-    admin.auth().createUser({email: res.email, password: randPass, phoneNumber: res.phoneNumber, photoURL: res.photoURL, displayName: res.nom + ' ' + res.prenom}).then(
+    admin.auth().createUser({ email: res.email, password: randPass, phoneNumber: res.phoneNumber, photoURL: res.photoURL, displayName: res.nom + ' ' + res.prenom }).then(
         (data) => {
             firebase.set('coursiers', data.uid, res).then(
-                () =>     ans.send({ response: 'ok', password: randPass })
+                () => ans.send({ response: 'ok', password: randPass })
             );
         }
     )
