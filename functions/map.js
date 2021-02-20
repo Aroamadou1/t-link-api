@@ -3,12 +3,12 @@
 module.exports = class map {
     constructor(client) {
         this.client = client;
-        this.key = "AIzaSyDlhMUVwp9azYQCiHxJirWeqMHE_dBYKOA";
+        this.key = "AIzaSyA5wsyAk8kvwY34zvBcRLV16PeWQNWMWUw";
 
     }
 
     rad(x) { return x * Math.PI / 180; }
-    //googlemap functions
+        //googlemap functions
     calculDistanceMatrix(depart, destination) {
         const route = {
             origin: [depart.latitude, depart.longitude],
@@ -57,7 +57,3 @@ module.exports = class map {
     }
 
 }
-
-
-
-
