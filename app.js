@@ -561,7 +561,7 @@ io.on('connection', socket => {
         socket.emit('ping1');
     }
 
-    setTimeout(sendPing(), pingInterval);
+    setTimeout(sendPing, pingInterval);
     socket.on('location', (res) => {
         console.log(res);
         res.socketId = socket.id;
