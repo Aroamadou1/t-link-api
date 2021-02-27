@@ -11,11 +11,11 @@ var corsOptions = {
     origin: 'http://example.com',
     optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
 }
-
+var pingInterval = 25 * 1000;
 // https://poised-elf-271018.appspot.com/payement
 
 const server = http.Server(app);
-const io = require('socket.io')(server);
+const io = require('socket.io')(server, { 'pingInterval': pingInterval });
 const admin = require("firebase-admin");
 const { Client, Status } = require("@googlemaps/google-maps-services-js");
 const client = new Client({});
@@ -557,6 +557,11 @@ app.route('/livraison/message').post(function(req, ans) {
 io.on('connection', socket => {
     console.log(socket.id);
 
+    function sendPing() {
+        socket.emit('ping1');
+    }
+
+    setTimeout(sendPing, pingInterval);
     socket.on('location', (res) => {
         console.log(res);
         res.socketId = socket.id;
