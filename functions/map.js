@@ -3,7 +3,7 @@
 module.exports = class map {
     constructor(client) {
         this.client = client;
-        this.key = "AIzaSyA5wsyAk8kvwY34zvBcRLV16PeWQNWMWUw";
+        this.key = "AIzaSyAc6-jpMbYu0GynObnncbLCEEv3oN_Dvx8";
 
     }
 
