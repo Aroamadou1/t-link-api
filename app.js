@@ -562,6 +562,10 @@ io.on('connection', socket => {
     }
 
     setTimeout(sendPing, pingInterval);
+    socket.on('pong1', function(data) {
+        setTimeout(sendPing, pingInterval);
+        console.log('pong');
+    });
     socket.on('location', (res) => {
         console.log(res);
         res.socketId = socket.id;
