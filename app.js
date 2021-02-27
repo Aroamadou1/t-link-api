@@ -859,16 +859,15 @@ io.on('connection', socket => {
     socket.on('disconnect', () => {
         console.log('disconnected ' + socket.id + ' & ' + socket.fcmKey)
         let i = coursiers.findIndex(coursier => coursier.socketId === socket.id);
-        console.log('disconnected :', coursiers[i].id)
-            // if (i != -1) {
-            //     firebase.update('coursiers', coursiers[i].id, { isOnline: false, connectionSince: new Date() });
-            //     coursiers.splice(i, 1);
-            // }
-            // let j = clients.findIndex(client => client.socketId === socket.id);
-            // if (j != -1) {
-            //     firebase.update('clients', clients[j].id, { isOnline: false, connectionSince: new Date() });
-            //     clients.splice(j, 1);
-            // }
+        if (i != -1) {
+            firebase.update('coursiers', coursiers[i].id, { isOnline: false, connectionSince: new Date() });
+            coursiers.splice(i, 1);
+        }
+        let j = clients.findIndex(client => client.socketId === socket.id);
+        if (j != -1) {
+            firebase.update('clients', clients[j].id, { isOnline: false, connectionSince: new Date() });
+            clients.splice(j, 1);
+        }
     });
 
 });
