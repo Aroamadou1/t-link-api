@@ -45,6 +45,7 @@ var map = new mapInstance(client);
 
 
 function calculerPrix(poids, distance, assurance, fragilite) {
+
     distance /= 1000;
     // let callback = function(ref) {
     //     ref.where('borneInf', '>=', distance).where('borneSup', '<', distance)
@@ -329,39 +330,41 @@ app.route('/livraison/calculate').post(function(req, ans) {
             let matrix = res2.data.routes[0].legs[0];
             res.trajet.distance = matrix.distance;
             res.trajet.duree = matrix.duration;
-            calculerPrix(res.colis.poidsId, matrix.distance.value, res.colis.assuarance, res.colis.fragilite).then(
-                prix => {
-                    console.log('calcul prix :', prix);
-                    let message = "La distance à parcourir a été évaluée à " + matrix.distance.text + ". Le prix provisoire est estimé à " + prix + ' f cfa. Nous vous rappelons \
+            let prix = res.prix;
+            console.log('calcul prix :', prix);
+            let message = "La distance à parcourir a été évaluée à " + matrix.distance.text + ". Le prix provisoire est estimé à " + prix + ' f cfa. Nous vous rappelons \
                     que ce prix peut changer toute fois si les informations que vous avez fournies ne sont pas correctes. Veuillez effectuer le payement pour continuer l\'opération';
-                    firebase.save('transactions', { methode: null, montant: prix, beneficiaire: 'TOTO Africa', type: 'payement', userId: res.client.id, phoneNumber: null, status: 1, description: message }).then(
-                        transactionId => {
-                            res.payement = { prix, transactionId };
-                            res.status = 1;
-                            firebase.save('livraisons', res).then(
-                                id => {
+            firebase.save('transactions', { methode: null, montant: prix, beneficiaire: 'TOTO Africa', type: 'payement', userId: res.client.id, phoneNumber: null, status: 1, description: message }).then(
+                transactionId => {
+                    res.payement = { prix, transactionId };
+                    res.status = 1;
+                    firebase.save('livraisons', res).then(
+                        id => {
 
-                                    let notification = {
-                                        title: "TOTO Express",
-                                        subtitle: "Livraison",
-                                        body: message
-                                    };
-                                    let data = {
-                                        type: "livraison",
-                                        action: "payement",
-                                        message,
-                                        transactionId,
-                                        id
-                                    };
-                                    firebase.sendNotification(res.client.fcmKey, notification, data, 60 * 60);
-                                }
-                            ).catch(err => console.log(err));
-
+                            let notification = {
+                                title: "TOTO Express",
+                                subtitle: "Livraison",
+                                body: message
+                            };
+                            let data = {
+                                type: "livraison",
+                                action: "payement",
+                                message,
+                                transactionId,
+                                id
+                            };
+                            firebase.sendNotification(res.client.fcmKey, notification, data, 60 * 60);
                         }
-                    );
+                    ).catch(err => console.log(err));
 
                 }
-            ).catch(err => console.log(err));
+            );
+            // calculerPrix(res.colis.poidsId, matrix.distance.value, res.colis.assuarance, res.colis.fragilite).then(
+            //     prix => {
+
+
+            //     }
+            // ).catch(err => console.log(err));
         }
     ).catch(err => {
         console.log(err)
