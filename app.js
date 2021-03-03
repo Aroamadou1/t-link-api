@@ -44,7 +44,7 @@ var firebase = new firebaseInstance(defaultFirestore, defaulFCM);
 var map = new mapInstance(client);
 
 
-function calculerPrix(poids, distance, categorie, valeur, fragilite) {
+function calculerPrix(poids, distance, assurance, fragilite) {
     distance /= 1000;
     // let callback = function(ref) {
     //     ref.where('borneInf', '>=', distance).where('borneSup', '<', distance)
@@ -53,6 +53,8 @@ function calculerPrix(poids, distance, categorie, valeur, fragilite) {
         res => {
             let tarif = res.find(item => item.data.borneInf < distance && item.data.borneSup >= distance)
             console.log(tarif);
+            if (assurance) tarif.data.montant += 100;
+            if (fragilite) tarif.data.montant += 50;
             return Math.round(tarif.data.montant * distance);
         }
     )
@@ -327,7 +329,7 @@ app.route('/livraison/calculate').post(function(req, ans) {
             let matrix = res2.data.routes[0].legs[0];
             res.trajet.distance = matrix.distance;
             res.trajet.duree = matrix.duration;
-            calculerPrix(res.colis.poidsId, matrix.distance.value, res.colis.categorieId, res.colis.valeur, res.colis.fragilite).then(
+            calculerPrix(res.colis.poidsId, matrix.distance.value, res.colis.assuarance, res.colis.fragilite).then(
                 prix => {
                     console.log('calcul prix :', prix);
                     let message = "La distance à parcourir a été évaluée à " + matrix.distance.text + ". Le prix provisoire est estimé à " + prix + ' f cfa. Nous vous rappelons \
@@ -609,7 +611,7 @@ io.on('connection', socket => {
                 let matrix = res2.data.routes[0].legs[0];
                 res.distance = matrix.distance;
                 res.duree = matrix.duration;
-                calculerPrix(res.colis.poids, res.distance.value, res.colis.categorie, res.colis.valeur, res.colis.fragilite).then(
+                calculerPrix(res.colis.poids, res.distance.value, res.colis.aassurance, res.colis.valeur, res.colis.fragilite).then(
                     prix => {
                         console.log('calcul prix :', prix);
                         res.prix = prix;
@@ -734,7 +736,7 @@ io.on('connection', socket => {
                     livraison.coursierFcmKey = res.coursierFcmKey;
                     firebase.update('livraisons', res.livraisonId, livraison).then(
                         () => {
-                            let message = "Un coursier arrivera dans " + livraison.dureeCoursierClient.text + " pour recuperer votre coli. Veuillez vous assurer que vous etes toujopurs joignable."
+                            let message = "Le coursier le plus proche est à " + livraison.dureeCoursierClient.text + ". Vous serez contectez dès son arrivée. Veuillez garder votre téléphone allumé."
                             let notification = {
                                     title: "TOTO Express",
                                     subtitle: "Livraison",
